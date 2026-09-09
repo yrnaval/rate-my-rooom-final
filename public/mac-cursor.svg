@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Classic Mac System 7 Arrow Pointer with 1px White Outline and Solid Black Body -->
+  <g shape-rendering="crispEdges">
+    <!-- White Outline -->
+    <path
+      d="M0,0 L0,18.5 L4.8,14.5 L7.8,21.5 L11.2,20 L8.2,13 L13.5,13 Z"
+      fill="#000000"
+      stroke="#FFFFFF"
+      stroke-width="2"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+    <!-- Solid Black Fill -->
+    <path
+      d="M0,0 L0,18.5 L4.8,14.5 L7.8,21.5 L11.2,20 L8.2,13 L13.5,13 Z"
+      fill="#000000"
+    />
+  </g>
+</svg>
