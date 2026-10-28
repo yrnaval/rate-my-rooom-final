@@ -466,7 +466,7 @@ export default function HomePage({ onNavigate }: Props) {
             </div>
 
             <p className="text-[13px] text-white/25 text-center leading-relaxed">
-              Real reviews from real students. Browse freely — sign in only to leave a review.
+              Made by Yr Nav 
             </p>
 
             <p className="text-[12px] text-white/20">© {new Date().getFullYear()} RateMyRoom</p>
