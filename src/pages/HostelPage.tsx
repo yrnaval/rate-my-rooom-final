@@ -238,11 +238,9 @@ export default function HostelPage({ hostelId, universitySlug, onNavigate, onLog
         )}
 
         {/* AI summary */}
-        {approvedCount >= 3 && (
-          <RevealSection>
-            <AIReportCard hostelId={hostelId} reviewCount={approvedCount} />
-          </RevealSection>
-        )}
+        <RevealSection>
+          <AIReportCard hostelId={hostelId} reviewCount={approvedCount} />
+        </RevealSection>
 
         {/* Description */}
         {hostel.description && (
