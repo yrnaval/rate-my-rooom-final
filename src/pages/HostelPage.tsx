@@ -6,6 +6,7 @@ import ReviewCard from '../components/ReviewCard';
 import ReviewForm from '../components/ReviewForm';
 import RatingBar from '../components/RatingBar';
 import RevealSection from '../components/RevealSection';
+import AIReportCard from '../components/AIReportCard';
 
 interface Props {
   hostelId: string;
@@ -234,6 +235,9 @@ export default function HostelPage({ hostelId, universitySlug, onNavigate, onLog
             </div>
           </RevealSection>
         )}
+
+        {/* AI summary */}
+        <AIReportCard hostelId={hostelId} reviewCount={count} />
 
         {/* Description */}
         {hostel.description && (
