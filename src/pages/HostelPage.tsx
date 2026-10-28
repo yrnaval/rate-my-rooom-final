@@ -106,6 +106,7 @@ export default function HostelPage({ hostelId, universitySlug, onNavigate, onLog
 
   const avg   = hostel.avg_overall ?? 0;
   const count = hostel.review_count ?? 0;
+  const approvedCount = reviews.filter(r => !r.status || r.status === 'approved').length;
 
   const ratingBars = [
     { label: 'Cleanliness', value: hostel.avg_cleanliness ?? 0 },
@@ -237,7 +238,11 @@ export default function HostelPage({ hostelId, universitySlug, onNavigate, onLog
         )}
 
         {/* AI summary */}
-        <AIReportCard hostelId={hostelId} reviewCount={count} />
+        {approvedCount >= 3 && (
+          <RevealSection>
+            <AIReportCard hostelId={hostelId} reviewCount={approvedCount} />
+          </RevealSection>
+        )}
 
         {/* Description */}
         {hostel.description && (

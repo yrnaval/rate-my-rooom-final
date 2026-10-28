@@ -55,6 +55,7 @@ export interface Review {
   stay_period: string | null;
   created_at: string;
   photos?: ReviewPhoto[];
+  status?: string;
 }
 
 export interface ReviewPhoto {
