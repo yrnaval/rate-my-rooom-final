@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Plus, Building2, Pencil, Trash2, X, Upload, Loader2, Search, Star, Image as ImageIcon } from 'lucide-react';
+import { Plus, Building2, Pencil, Trash2, X, Upload, Loader2, Search, Star, Image as ImageIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastContext';
 import ConfirmDialog from '../ConfirmDialog';
@@ -10,6 +10,7 @@ interface UniRow {
   id: string; name: string; short_name: string; location: string; country: string;
   description: string | null; cover_image_url: string | null; image_url: string | null;
   photos?: string[] | null;
+  display_order?: number;
   slug: string; website_url: string | null; address: string | null; created_at: string;
   status: 'active' | 'archived';
   hostel_count?: number; review_count?: number;
@@ -30,14 +31,37 @@ export default function Universities() {
   const [editing, setEditing] = useState<UniRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UniRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const savingOrderRef = useRef(false);
 
   const fetchUnis = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase.from('universities').select('*').order('created_at', { ascending: false });
+    let { data, error } = await supabase
+      .from('universities')
+      .select('*')
+      .order('display_order', { ascending: true })
+      .order('name', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (error && (error.code === '42703' || /display_order/i.test(error.message || ''))) {
+      const fallback = await supabase.from('universities').select('*').order('name', { ascending: true });
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) { setError('Failed to load universities'); setLoading(false); return; }
 
-    const enriched = await Promise.all((data || []).map(async (u: UniRow) => {
+    const ordered = [...(data || [])].sort((a: UniRow, b: UniRow) => {
+      const ao = typeof a.display_order === 'number' ? a.display_order : Number.MAX_SAFE_INTEGER;
+      const bo = typeof b.display_order === 'number' ? b.display_order : Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      const nameComparison = a.name.localeCompare(b.name);
+      return nameComparison || a.id.localeCompare(b.id);
+    });
+
+    const enriched = await Promise.all(ordered.map(async (u: UniRow) => {
       const { count: hostelCount } = await supabase.from('hostels').select('*', { count: 'exact', head: true }).eq('university_id', u.id);
       const { data: hostels } = await supabase.from('hostels').select('id').eq('university_id', u.id);
       const ids = (hostels || []).map(h => h.id);
@@ -50,6 +74,7 @@ export default function Universities() {
     }));
 
     setRows(enriched);
+    setOrderDirty(false);
     setLoading(false);
   }, []);
 
@@ -69,6 +94,40 @@ export default function Universities() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filtersActive = search.trim() !== '' || country !== 'all' || statusFilter !== 'all';
+
+  const moveUniversity = (id: string, direction: -1 | 1) => {
+    if (savingOrder || filtersActive) return;
+    const idx = rows.findIndex(u => u.id === id);
+    const next = idx + direction;
+    if (idx < 0 || next < 0 || next >= rows.length) return;
+    const copy = [...rows];
+    [copy[idx], copy[next]] = [copy[next], copy[idx]];
+    setRows(copy.map((u, i) => ({ ...u, display_order: i + 1 })));
+    setOrderDirty(true);
+  };
+
+  const handleSaveOrder = async () => {
+    if (!orderDirty || savingOrderRef.current || rows.length === 0) return;
+    savingOrderRef.current = true;
+    setSavingOrder(true);
+    const { error } = await supabase.rpc('update_universities_order', {
+      ordered_ids: rows.map(r => r.id),
+    });
+    savingOrderRef.current = false;
+    setSavingOrder(false);
+    if (error) {
+      toast(
+        error.message?.includes('does not exist') || error.message?.includes('schema cache')
+          ? 'Display order is not enabled on the database yet. Apply the university display_order migration first.'
+          : error.message || 'Failed to save university order',
+        'error',
+      );
+      return;
+    }
+    setOrderDirty(false);
+    toast('University order saved');
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -95,13 +154,24 @@ export default function Universities() {
         title="Universities"
         subtitle={`${rows.length} total universities`}
         action={
-          <button
-            onClick={() => { setEditing(null); setShowForm(true); }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#950606] hover:bg-[#7a0404] transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add University
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSaveOrder}
+              disabled={!orderDirty || savingOrder}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold text-[#0A0A0A] bg-black/5 hover:bg-black/10 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {savingOrder ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {savingOrder ? 'Saving order…' : 'Save order'}
+            </button>
+            <button
+              onClick={() => { setEditing(null); setShowForm(true); }}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#950606] hover:bg-[#7a0404] transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add University
+            </button>
+          </div>
         }
       />
 
@@ -134,6 +204,17 @@ export default function Universities() {
         />
       </div>
 
+      {orderDirty && (
+        <div className="mb-4 px-4 py-3 rounded-xl text-[13px] font-medium text-[#92400e] bg-amber-50 border border-amber-200">
+          Display order has unsaved changes. Click Save order to apply them on the public Universities page.
+        </div>
+      )}
+      {filtersActive && (
+        <p className="mb-4 text-[13px] text-[#737373] font-medium">
+          Clear search and filters to reorder universities. Order is saved for the full list, not the filtered view.
+        </p>
+      )}
+
       {/* Table / Cards */}
       {loading ? (
         <LoadingState label="Loading universities…" />
@@ -148,6 +229,7 @@ export default function Universities() {
             <table className="w-full">
               <thead>
                 <tr className="border-b" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
+                  <th className="text-left px-5 py-3 text-[12px] font-bold text-[#737373] uppercase tracking-wide">Order</th>
                   <th className="text-left px-5 py-3 text-[12px] font-bold text-[#737373] uppercase tracking-wide">University</th>
                   <th className="text-left px-5 py-3 text-[12px] font-bold text-[#737373] uppercase tracking-wide">City</th>
                   <th className="text-left px-5 py-3 text-[12px] font-bold text-[#737373] uppercase tracking-wide">Country</th>
@@ -162,8 +244,36 @@ export default function Universities() {
                 {paged.map(u => {
                   const cover = u.cover_image_url || (u.photos && u.photos[0]) || u.image_url;
                   const photoCount = u.photos?.length || (cover ? 1 : 0);
+                  const orderIndex = rows.findIndex(r => r.id === u.id);
+                  const canMoveUp = !filtersActive && !savingOrder && orderIndex > 0;
+                  const canMoveDown = !filtersActive && !savingOrder && orderIndex >= 0 && orderIndex < rows.length - 1;
                   return (
                     <tr key={u.id} className="border-b last:border-0 hover:bg-black/[0.02] transition-colors" style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-6 text-[13px] font-bold text-[#525252] tabular-nums">{orderIndex + 1}</span>
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              onClick={() => moveUniversity(u.id, -1)}
+                              disabled={!canMoveUp}
+                              className="w-7 h-6 rounded-md flex items-center justify-center hover:bg-black/5 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-4 h-4 text-[#525252]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveUniversity(u.id, 1)}
+                              disabled={!canMoveDown}
+                              className="w-7 h-6 rounded-md flex items-center justify-center hover:bg-black/5 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-4 h-4 text-[#525252]" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           {cover ? (
@@ -222,9 +332,33 @@ export default function Universities() {
             {paged.map(u => {
               const cover = u.cover_image_url || (u.photos && u.photos[0]) || u.image_url;
               const photoCount = u.photos?.length || (cover ? 1 : 0);
+              const orderIndex = rows.findIndex(r => r.id === u.id);
+              const canMoveUp = !filtersActive && !savingOrder && orderIndex > 0;
+              const canMoveDown = !filtersActive && !savingOrder && orderIndex >= 0 && orderIndex < rows.length - 1;
               return (
                 <Card key={u.id} className="p-4">
                   <div className="flex items-start gap-3 mb-3">
+                    <div className="flex flex-col items-center shrink-0 pt-0.5">
+                      <span className="text-[11px] font-bold text-[#737373] tabular-nums mb-1">{orderIndex + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => moveUniversity(u.id, -1)}
+                        disabled={!canMoveUp}
+                        className="w-8 h-7 rounded-md flex items-center justify-center bg-black/5 hover:bg-black/10 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                        title="Move up"
+                      >
+                        <ChevronUp className="w-4 h-4 text-[#525252]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveUniversity(u.id, 1)}
+                        disabled={!canMoveDown}
+                        className="w-8 h-7 rounded-md flex items-center justify-center bg-black/5 hover:bg-black/10 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                        title="Move down"
+                      >
+                        <ChevronDown className="w-4 h-4 text-[#525252]" />
+                      </button>
+                    </div>
                     {cover ? (
                       <img
                         src={cover}
@@ -437,7 +571,8 @@ function UniversityForm({ editing, onClose, onSaved }: { editing: UniRow | null;
         let { error } = await supabase.from('universities').update(payload).eq('id', editing.id);
         // Fallback gracefully if remote schema doesn't yet have 'photos' column
         if (error && (error.code === '42703' || error.message?.includes('photos'))) {
-          const { photos: _, ...fallbackPayload } = payload;
+          const fallbackPayload = { ...payload };
+          Reflect.deleteProperty(fallbackPayload, 'photos');
           const res = await supabase.from('universities').update(fallbackPayload).eq('id', editing.id);
           error = res.error;
         }
@@ -446,7 +581,8 @@ function UniversityForm({ editing, onClose, onSaved }: { editing: UniRow | null;
         let { error } = await supabase.from('universities').insert({ id, ...payload });
         // Fallback gracefully if remote schema doesn't yet have 'photos' column
         if (error && (error.code === '42703' || error.message?.includes('photos'))) {
-          const { photos: _, ...fallbackPayload } = payload;
+          const fallbackPayload = { ...payload };
+          Reflect.deleteProperty(fallbackPayload, 'photos');
           const res = await supabase.from('universities').insert({ id, ...fallbackPayload });
           error = res.error;
         }

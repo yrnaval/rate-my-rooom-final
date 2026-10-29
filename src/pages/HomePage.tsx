@@ -52,11 +52,31 @@ export default function HomePage({ onNavigate }: Props) {
 
   async function fetchUniversities() {
     setLoading(true);
-    const { data, error } = await supabase.from('universities').select('*').order('name');
+    let { data, error } = await supabase
+      .from('universities')
+      .select('*')
+      .order('display_order', { ascending: true })
+      .order('name', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (error && (error.code === '42703' || /display_order/i.test(error.message || ''))) {
+      const fallback = await supabase.from('universities').select('*').order('name', { ascending: true });
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) { setLoading(false); return; }
 
+    const ordered = [...(data || [])].sort((a, b) => {
+      const ao = typeof a.display_order === 'number' ? a.display_order : Number.MAX_SAFE_INTEGER;
+      const bo = typeof b.display_order === 'number' ? b.display_order : Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      const nameComparison = String(a.name).localeCompare(String(b.name));
+      return nameComparison || String(a.id).localeCompare(String(b.id));
+    });
+
     const enriched = await Promise.all(
-      (data || []).map(async (uni) => {
+      ordered.map(async (uni) => {
         const { data: hostels } = await supabase
           .from('hostels').select('id').eq('university_id', uni.id);
         const hostelIds = (hostels || []).map(h => h.id);

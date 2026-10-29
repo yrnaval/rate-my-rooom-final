@@ -10,6 +10,7 @@ export interface University {
   slug: string;
   description: string | null;
   photos?: string[];
+  display_order?: number;
   created_at: string;
   hostel_count?: number;
   avg_overall?: number;
