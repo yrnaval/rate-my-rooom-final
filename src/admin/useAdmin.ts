@@ -87,7 +87,7 @@ export function useAdmin() {
           .then(() => {
             // Updated in background
           })
-          .catch(() => {});
+
       }
 
       setState({

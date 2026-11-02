@@ -77,9 +77,28 @@ export default function ReviewForm({ hostelId, onSuccess, onLoginRequired }: Pro
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
-    const next = Array.from(files).slice(0, 5 - photos.length);
-    setPhotos(p  => [...p, ...next]);
-    next.forEach(f => setPreviews(p => [...p, URL.createObjectURL(f)]));
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    const validFiles: File[] = [];
+    for (const file of Array.from(files)) {
+      if (!allowedTypes.includes(file.type)) {
+        setError('Only JPG, PNG, and WebP images are allowed');
+        continue;
+      }
+      if (file.size > maxSize) {
+        setError('Each photo must be under 5MB');
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    const next = validFiles.slice(0, 5 - photos.length);
+    if (next.length > 0) {
+      setError(null);
+      setPhotos(p  => [...p, ...next]);
+      next.forEach(f => setPreviews(p => [...p, URL.createObjectURL(f)]));
+    }
   };
 
   const removePhoto = (i: number) => {
@@ -103,7 +122,10 @@ export default function ReviewForm({ hostelId, onSuccess, onLoginRequired }: Pro
     setError(null);
 
     try {
-      const name   = (user.user_metadata?.full_name as string) || user.email || 'Anonymous';
+      const name   = (user.user_metadata?.full_name as string)
+        || (user.user_metadata?.name as string)
+        || user.email?.split('@')[0]
+        || 'Anonymous';
       const avatar = (user.user_metadata?.avatar_url as string) || null;
 
       const { data: review, error: rErr } = await supabase
@@ -132,8 +154,8 @@ export default function ReviewForm({ hostelId, onSuccess, onLoginRequired }: Pro
       if (rErr) throw rErr;
 
       for (const file of photos) {
-        const ext  = file.name.split('.').pop();
-        const path = `${user.id}/${review.id}/${Date.now()}.${ext}`;
+        const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+        const path = `${user.id}/${review.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from('review-photos')
           .upload(path, file, { contentType: file.type });
