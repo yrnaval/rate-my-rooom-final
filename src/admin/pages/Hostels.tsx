@@ -5,6 +5,7 @@ import { useToast } from '../ToastContext';
 import ConfirmDialog from '../ConfirmDialog';
 import { SectionHeader, LoadingState, EmptyState, ErrorState, Pagination, FilterSelect, Card } from '../components';
 import { getPublicStoragePath, removeImage, uploadImage, validateImage } from '../upload';
+import { sanitizeInput } from '../../lib/sanitize';
 
 interface HostelRow {
   id: string; name: string; type: 'male' | 'female' | 'mixed'; description: string | null;
@@ -335,12 +336,12 @@ function HostelForm({ editing, universities, onClose, onSaved }: { editing: Host
       }
 
       const payload = {
-        name: form.name.trim(),
+        name: sanitizeInput(form.name, 150),
         university_id: form.university_id,
         type: form.type,
-        description: form.description.trim() || null,
-        location: form.location.trim() || null,
-        room_type: form.room_type.trim() || null,
+        description: sanitizeInput(form.description, 2000) || null,
+        location: sanitizeInput(form.location, 200) || null,
+        room_type: sanitizeInput(form.room_type, 100) || null,
         capacity: form.capacity ? parseInt(form.capacity) : null,
         cover_image_url: coverUrl,
         status: form.status,

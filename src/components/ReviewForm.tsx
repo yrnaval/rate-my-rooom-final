@@ -3,6 +3,7 @@ import { Upload, X, Loader2, CheckCircle, AlertCircle, Camera, LogIn } from 'luc
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ReviewFormData } from '../lib/types';
+import { sanitizeInput } from '../lib/sanitize';
 import StarRating from './StarRating';
 
 interface Props {
@@ -110,7 +111,9 @@ export default function ReviewForm({ hostelId, onSuccess, onLoginRequired }: Pro
   const validate = (): string | null => {
     const keys: CategoryKey[] = ['cleanliness', 'wifi', 'food', 'water', 'security', 'facilities', 'value'];
     if (keys.some(k => (form[k] as number) === 0)) return 'Please rate all 7 categories';
-    if (!form.comment.trim()) return 'Please write a short comment about your stay';
+    const trimmed = form.comment.trim();
+    if (!trimmed) return 'Please write a short comment about your stay';
+    if (trimmed.length > 500) return 'Review comment cannot exceed 500 characters';
     return null;
   };
 
@@ -122,11 +125,15 @@ export default function ReviewForm({ hostelId, onSuccess, onLoginRequired }: Pro
     setError(null);
 
     try {
-      const name   = (user.user_metadata?.full_name as string)
+      const rawName = (user.user_metadata?.full_name as string)
         || (user.user_metadata?.name as string)
         || user.email?.split('@')[0]
         || 'Anonymous';
+      const name = sanitizeInput(rawName, 100) || 'Anonymous';
       const avatar = (user.user_metadata?.avatar_url as string) || null;
+
+      const sanitizedComment = sanitizeInput(form.comment, 500);
+      const sanitizedStayPeriod = sanitizeInput(form.stay_period, 50) || null;
 
       const { data: review, error: rErr } = await supabase
         .from('reviews')
@@ -145,8 +152,8 @@ export default function ReviewForm({ hostelId, onSuccess, onLoginRequired }: Pro
           facilities:  form.facilities,
           value:       form.value,
           overall:     form.overall,
-          body:        form.comment.trim(),
-          stay_period: form.stay_period.trim() || null,
+          body:        sanitizedComment,
+          stay_period: sanitizedStayPeriod,
         })
         .select()
         .single();
@@ -260,11 +267,17 @@ export default function ReviewForm({ hostelId, onSuccess, onLoginRequired }: Pro
         style={{ border: '1px solid rgba(0,0,0,0.07)' }}
       >
         <div>
-          <label className="block text-[13.5px] font-bold text-[#0A0A0A] mb-2">
-            Your Review <span className="text-[#950606]">*</span>
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[13.5px] font-bold text-[#0A0A0A]">
+              Your Review <span className="text-[#950606]">*</span>
+            </label>
+            <span className={`text-[12px] font-medium ${form.comment.length > 500 ? 'text-[#950606]' : 'text-[#A3A3A3]'}`}>
+              {form.comment.length}/500
+            </span>
+          </div>
           <textarea
             value={form.comment}
+            maxLength={500}
             onChange={e => setForm(f => ({ ...f, comment: e.target.value }))}
             placeholder="Share your honest experience — what was great, what needs improvement…"
             rows={4}

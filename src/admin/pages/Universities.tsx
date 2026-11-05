@@ -5,6 +5,7 @@ import { useToast } from '../ToastContext';
 import ConfirmDialog from '../ConfirmDialog';
 import { SectionHeader, LoadingState, EmptyState, ErrorState, Pagination, FilterSelect, Card } from '../components';
 import { getPublicStoragePath, removeImage, uploadImage, validateImage } from '../upload';
+import { sanitizeInput, isSafeUrl } from '../../lib/sanitize';
 
 interface UniRow {
   id: string; name: string; short_name: string; location: string; country: string;
@@ -553,13 +554,13 @@ function UniversityForm({ editing, onClose, onSaved }: { editing: UniRow | null;
       const primaryCover = finalPhotoUrls[0] || null;
 
       const payload = {
-        name: form.name.trim(),
-        short_name: form.short_name.trim() || form.name.slice(0, 6).toUpperCase(),
-        country: form.country.trim(),
-        location: form.location.trim(),
-        address: form.address.trim() || null,
-        description: form.description.trim() || null,
-        website_url: form.website_url.trim() || null,
+        name: sanitizeInput(form.name, 150),
+        short_name: sanitizeInput(form.short_name, 20) || sanitizeInput(form.name.slice(0, 6).toUpperCase(), 6),
+        country: sanitizeInput(form.country, 100),
+        location: sanitizeInput(form.location, 200),
+        address: sanitizeInput(form.address, 300) || null,
+        description: sanitizeInput(form.description, 2000) || null,
+        website_url: isSafeUrl(form.website_url.trim()) ? form.website_url.trim() : null,
         cover_image_url: primaryCover,
         image_url: primaryCover,
         photos: finalPhotoUrls,

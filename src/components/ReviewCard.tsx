@@ -3,6 +3,7 @@ import { Star, Calendar, User, Camera, Flag, X } from 'lucide-react';
 import { Review } from '../lib/types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { sanitizeInput, isSafeUrl } from '../lib/sanitize';
 
 interface Props {
   review: Review;
@@ -100,7 +101,7 @@ export default function ReviewCard({ review, onLoginRequired }: Props) {
       review_id: review.id,
       reported_by: user.id,
       reason,
-      description: description.trim() || null,
+      description: sanitizeInput(description, 1000) || null,
     });
     setReporting(false);
 
@@ -215,7 +216,11 @@ export default function ReviewCard({ review, onLoginRequired }: Props) {
             return (
               <button
                 key={photo.id}
-                onClick={() => window.open(src, '_blank')}
+                onClick={() => {
+                  if (isSafeUrl(src)) {
+                    window.open(src, '_blank', 'noopener,noreferrer');
+                  }
+                }}
                 className="group/photo relative overflow-hidden rounded-xl w-[72px] h-[72px] bg-gray-100 transition-all duration-300 hover:scale-105"
                 style={{ border: '1.5px solid rgba(0,0,0,0.07)' }}
               >
